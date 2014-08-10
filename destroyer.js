@@ -15,8 +15,8 @@ function _getMax() {
     return parseInt(localStorage.max || 20);
 }
 
-function _getMaxMemory() {
-    return parseInt(localStorage.max_memory || 1500);
+function _getMemory() {
+    return parseInt(localStorage.memory || 1500);
 }
 
 function _getAlgo() {
@@ -124,7 +124,7 @@ function _calculateMemoryPerTab(process_data) {
 
 function _removeByMemoryHeuristic(tabs, memory, sum) {
     // We only delete one tab, here.  We get called more often, if required.
-    if (sum > _getMaxMemory()) {
+    if (sum > _getMemory()) {
         // fixme: what's the best way to use the memory info?  We are just
         // removing the least accessed, right now.  It may work well, but
         // instead of closing n light-weight tabs, we could close one heavy
@@ -139,7 +139,7 @@ function _removeMemoryHogsIfAny(tabs){
 
     chrome.processes.getProcessInfo([], true, function(process_data) {
         var sum = _getTotalMemory(process_data);
-        if (sum > _getMaxMemory()) {
+        if (sum > _getMemory()) {
             var memory = _calculateMemoryPerTab(process_data);
             _removeByMemoryHeuristic(tabs, memory, sum);
 
