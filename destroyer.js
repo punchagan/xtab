@@ -5,13 +5,18 @@ var accessed = {};
 var activeTabId;
 var timeout;
 var activeInterval = 2500;
+var memory_units = 1000000; // MB
 
 function _debug() {
-    // console.log.apply(console, arguments);
+    console.log.apply(console, arguments);
 }
 
 function _getMax() {
     return parseInt(localStorage.max || 20);
+}
+
+function _getMaxMemory() {
+    return parseInt(localStorage.max_memory || 1500);
 }
 
 function _getAlgo() {
@@ -89,6 +94,69 @@ function _getLowestIn(data, tabs) {
     return lowestIndex;
 }
 
+function _getTotalMemory(process_data) {
+    var sum = 0;
+    for(process in process_data){
+        sum += process_data[process].privateMemory;
+    }
+
+    sum /= memory_units;
+    _debug('total memory in MB:', sum);
+
+    return sum;
+}
+
+function _calculateMemoryPerTab(process_data) {
+    var memory = [];
+    for(process in process_data){
+        var current_process = process_data[process];
+        // Ignore any non render processes
+        if (current_process.type == 'renderer') {
+            var tabs = current_process.tabs
+            for(var i=0; i<tabs.length; i++) {
+                memory[tabs[i]] = current_process.privateMemory/tabs.length;
+                memory[tabs[i]] /= memory_units;
+            }
+        }
+    }
+    return memory;
+}
+
+function _removeByMemoryHeuristic(tabs, memory, sum) {
+    // We only delete one tab, here.  We get called more often, if required.
+    if (sum > _getMaxMemory()) {
+        // fixme: what's the best way to use the memory info?  We are just
+        // removing the least accessed, right now.  It may work well, but
+        // instead of closing n light-weight tabs, we could close one heavy
+        // weight tab...
+        // We could be a little fuzzy, and remove one of the least recently
+        // used 5 tabs?
+        _removeLeastRecentlyUsed(tabs);
+    }
+}
+
+function _removeMemoryHogsIfAny(tabs){
+
+    chrome.processes.getProcessInfo([], true, function(process_data) {
+        var sum = _getTotalMemory(process_data);
+        if (sum > _getMaxMemory()) {
+            var memory = _calculateMemoryPerTab(process_data);
+            _removeByMemoryHeuristic(tabs, memory, sum);
+
+            // Check if we need to remove more tabs
+            chrome.tabs.query({pinned: false}, function(tabs) {
+                tabs = tabs.filter(function(tab) {
+                    return tab.id != activeTabId;
+                });
+                // fixme: If no further tabs can be killed, we are in big
+                // trouble.  It would've been ok to fail, but the recursive
+                // call is a big pain!
+                _removeMemoryHogsIfAny(tabs);
+            });
+        }
+    });
+}
+
 function _removeLeastAccessed(tabs) {
     var removeTabIndex = _getLowestIn(accessed, tabs);
     if (removeTabIndex >= 0) {
@@ -143,15 +211,17 @@ function _handleTabAdded(data) {
     _debug('added', tabId);
 
     // find tab to remove
-    chrome.tabs.query({currentWindow: true, pinned: false}, function(tabs) {
+    var currentWindow = (_getAlgo() == 'memory')?false:true;
+    chrome.tabs.query({currentWindow: currentWindow, pinned: false}, function(tabs) {
         tabs = tabs.filter(function(tab) {
             return tab.id != tabId;
         });
 
-        if (tabs.length >= _getMax()) {
+        if (_getAlgo() == 'memory') {
+            _removeMemoryHogsIfAny(tabs);
+        } else if (tabs.length >= _getMax()) {
             _removeTabs(tabs);
         }
-
         openedOn[tabId] = new Date().getTime();
         accessed[tabId] = 0;
     });

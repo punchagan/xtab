@@ -9,7 +9,7 @@
         "48": "destroy48.png",
         "128": "destroy128.png"
     },
-    "permissions": ["tabs"],
+    "permissions": ["processes", "tabs"],
     "browser_action": {
         "default_title": "xTab",
         "default_icon": "destroy38.png",
