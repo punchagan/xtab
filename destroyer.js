@@ -143,9 +143,9 @@ function _handleTabAdded(data) {
     _debug('added', tabId);
 
     // find tab to remove
-    chrome.tabs.query({currentWindow: true}, function(tabs) {
+    chrome.tabs.query({currentWindow: true, pinned: false}, function(tabs) {
         tabs = tabs.filter(function(tab) {
-            return !tab.pinned && tab.id != tabId;
+            return tab.id != tabId;
         });
 
         if (tabs.length >= _getMax()) {
