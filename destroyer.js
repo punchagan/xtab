@@ -94,35 +94,7 @@ function _getLowestIn(data, tabs) {
     return lowestIndex;
 }
 
-function _getTotalMemory(process_data) {
-    var sum = 0;
-    for(process in process_data){
-        sum += process_data[process].privateMemory;
-    }
-
-    sum /= memory_units;
-    _debug('total memory in MB:', sum);
-
-    return sum;
-}
-
-function _calculateMemoryPerTab(process_data) {
-    var memory = [];
-    for(process in process_data){
-        var current_process = process_data[process];
-        // Ignore any non render processes
-        if (current_process.type == 'renderer') {
-            var tabs = current_process.tabs
-            for(var i=0; i<tabs.length; i++) {
-                memory[tabs[i]] = current_process.privateMemory/tabs.length;
-                memory[tabs[i]] /= memory_units;
-            }
-        }
-    }
-    return memory;
-}
-
-function _removeByMemoryHeuristic(tabs, memory, sum) {
+function _removeByMemoryHeuristic(tabs, sum) {
     // We only delete one tab, here.  We get called more often, if required.
     if (sum > _getMemory()) {
         // fixme: what's the best way to use the memory info?  We are just
@@ -131,28 +103,38 @@ function _removeByMemoryHeuristic(tabs, memory, sum) {
         // weight tab...
         // We could be a little fuzzy, and remove one of the least recently
         // used 5 tabs?
-        _removeLeastRecentlyUsed(tabs);
+        var removed = _removeLeastRecentlyUsed(tabs);
+
+        // We also log the tabs that we are closing ...  This code could be in
+        // remove handler, but we don't want to create a copy of the browsing
+        // history!  We only want a log of the automatically closed stuff.
+        _debug(removed);
+
     }
 }
 
-function _removeMemoryHogsIfAny(tabs){
+function _getTotalMemory(process_data) {
+    var sum = 0;
+    for(process in process_data){
+        sum += process_data[process].privateMemory;
+    }
+    sum /= memory_units;
+    _debug('total memory in MB:', sum);
+    return sum;
+}
 
+function _removeMemoryHogsIfAny(tabs){
     chrome.processes.getProcessInfo([], true, function(process_data) {
         var sum = _getTotalMemory(process_data);
-        if (sum > _getMemory()) {
-            var memory = _calculateMemoryPerTab(process_data);
-            var previous_length = tabs.length;
-            _removeByMemoryHeuristic(tabs, memory, sum);
-            if (previous_length != tabs.length) {
-                // If we did have to, and could remove one tab, see if we
-                // can/need to remove more tabs
-                chrome.tabs.query({pinned: false}, function(tabs) {
-                    tabs = tabs.filter(function(tab) {
-                        return tab.id != activeTabId;
-                    });
-                    _removeMemoryHogsIfAny(tabs);
-                });
-            }
+        var previous_length = tabs.length;
+        _removeByMemoryHeuristic(tabs, sum);
+
+        if (previous_length != tabs.length) {
+            // If tabs were removed, get greedy!
+            var query = {pinned:false, active:false};
+            chrome.tabs.query(query, function(tabs) {
+                _removeMemoryHogsIfAny(tabs);
+            });
         }
     });
 }
@@ -161,27 +143,24 @@ function _removeLeastAccessed(tabs) {
     var removeTabIndex = _getLowestIn(accessed, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1);
     }
-    return tabs;
 }
 
 function _removeOldest(tabs) {
     var removeTabIndex = _getLowestIn(openedOn, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1);
     }
-    return tabs;
 }
 
 function _removeLeastRecentlyUsed(tabs) {
     var removeTabIndex = _getLowestIn(usedOn, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1);
     }
-    return tabs;
 }
 
 function _removeTabs(tabs) {
@@ -192,13 +171,13 @@ function _removeTabs(tabs) {
         _debug('removing a tab with length', length);
         switch (_getAlgo()) {
             case 'oldest':
-                tabs = _removeOldest(tabs);
+                _removeOldest(tabs);
                 break;
             case 'accessed':
-                tabs = _removeLeastAccessed(tabs);
+                _removeLeastAccessed(tabs);
                 break;
             default:
-                tabs = _removeLeastRecentlyUsed(tabs);
+                _removeLeastRecentlyUsed(tabs);
                 break;
         }
         length -= 1;
@@ -211,13 +190,12 @@ function _handleTabAdded(data) {
     _debug('added', tabId);
 
     // find tab to remove
-    var currentWindow = (_getAlgo() == 'memory')?false:true;
-    chrome.tabs.query({currentWindow: currentWindow, pinned: false}, function(tabs) {
-        tabs = tabs.filter(function(tab) {
-            return tab.id != tabId;
-        });
-
-        if (_getAlgo() == 'memory') {
+    var query = {active:false, pinned:false}
+    if (_getAlgo() !== 'memory') {
+        query.currentWindow = true;
+    }
+    chrome.tabs.query(query, function(tabs) {
+        if (_getAlgo() === 'memory') {
             _removeMemoryHogsIfAny(tabs);
         } else if (tabs.length >= _getMax()) {
             _removeTabs(tabs);
