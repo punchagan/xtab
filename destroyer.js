@@ -8,7 +8,7 @@ var activeInterval = 2500;
 var memory_units = 1000000; // MB
 
 function _debug() {
-    console.log.apply(console, arguments);
+    // console.log.apply(console, arguments);
 }
 
 function _getMax() {
@@ -141,18 +141,18 @@ function _removeMemoryHogsIfAny(tabs){
         var sum = _getTotalMemory(process_data);
         if (sum > _getMemory()) {
             var memory = _calculateMemoryPerTab(process_data);
+            var previous_length = tabs.length;
             _removeByMemoryHeuristic(tabs, memory, sum);
-
-            // Check if we need to remove more tabs
-            chrome.tabs.query({pinned: false}, function(tabs) {
-                tabs = tabs.filter(function(tab) {
-                    return tab.id != activeTabId;
+            if (previous_length != tabs.length) {
+                // If we did have to, and could remove one tab, see if we
+                // can/need to remove more tabs
+                chrome.tabs.query({pinned: false}, function(tabs) {
+                    tabs = tabs.filter(function(tab) {
+                        return tab.id != activeTabId;
+                    });
+                    _removeMemoryHogsIfAny(tabs);
                 });
-                // fixme: If no further tabs can be killed, we are in big
-                // trouble.  It would've been ok to fail, but the recursive
-                // call is a big pain!
-                _removeMemoryHogsIfAny(tabs);
-            });
+            }
         }
     });
 }
