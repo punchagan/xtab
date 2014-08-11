@@ -94,9 +94,22 @@ function _getLowestIn(data, tabs) {
     return lowestIndex;
 }
 
+function _saveRemovedTabInfo(tab) {
+    _debug('backing up removed tab:', tab);
+    if (localStorage.removed_tabs !== undefined && localStorage.removed_tabs.length > 0) {
+        var removed_tabs = JSON.parse(localStorage.removed_tabs);
+    } else {
+        var removed_tabs = [];
+    }
+    info = {url: tab.url, title: tab.title, timestamp: new Date().getTime()};
+    removed_tabs.push(info);
+    localStorage.removed_tabs = JSON.stringify(removed_tabs);
+}
+
 function _removeByMemoryHeuristic(tabs, sum) {
     // We only delete one tab, here.  We get called more often, if required.
-    if (sum > _getMemory()) {
+    if (sum > _getMemory() * 1.15) { // Allow some leeway, to let things settle
+
         // fixme: what's the best way to use the memory info?  We are just
         // removing the least accessed, right now.  It may work well, but
         // instead of closing n light-weight tabs, we could close one heavy
@@ -108,7 +121,7 @@ function _removeByMemoryHeuristic(tabs, sum) {
         // We also log the tabs that we are closing ...  This code could be in
         // remove handler, but we don't want to create a copy of the browsing
         // history!  We only want a log of the automatically closed stuff.
-        _debug(removed);
+        _saveRemovedTabInfo(removed);
 
     }
 }
@@ -143,7 +156,7 @@ function _removeLeastAccessed(tabs) {
     var removeTabIndex = _getLowestIn(accessed, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        return tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1)[0];
     }
 }
 
@@ -151,7 +164,7 @@ function _removeOldest(tabs) {
     var removeTabIndex = _getLowestIn(openedOn, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        return tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1)[0];
     }
 }
 
@@ -159,7 +172,7 @@ function _removeLeastRecentlyUsed(tabs) {
     var removeTabIndex = _getLowestIn(usedOn, tabs);
     if (removeTabIndex >= 0) {
         _removeTab(tabs[removeTabIndex].id);
-        return tabs.splice(removeTabIndex, 1);
+        return tabs.splice(removeTabIndex, 1)[0];
     }
 }
 
