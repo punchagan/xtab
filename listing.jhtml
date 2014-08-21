@@ -1,0 +1,11 @@
+<h1>Closed Tabs</h1>
+
+<ul>
+    {% for (var i=0; i < removed_tabs.length; i ++) %}
+        {% var tab = removed_tabs[i] %}
+        <li>
+            <a class="removed-tab" href={{ tab.url }} target="_blank">{{ tab.title }}</a>
+            {{ new Date(tab.timestamp).toString() }}
+       </li>
+   {% end %}
+</ul>

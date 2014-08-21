@@ -32,3 +32,5 @@
     <label><input type="radio" name="algo" value="oldest"{% if (algo == 'oldest') %} checked{% end %}>Oldest</label>
     <label><input type="radio" name="algo" value="memory"{% if (algo == 'memory') %} checked{% end %}>Memory Heuristic</label>
 </form>
+
+<a href="#" id="open-listing">Show closed tabs</a>

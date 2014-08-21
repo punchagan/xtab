@@ -48,10 +48,15 @@ function _run() {
     $('body').html(Aftershave.render('popup', {options: options, algo: algo, max: max, memory:memory}));
 }
 
+function _openListing() {
+    chrome.tabs.create({'url': 'listing.html'});
+}
+
 $.ready(function() {
     $(document).on('change', 'select', _handleChange);
     $(document).on('change', '#input-max', _saveMax);
     $(document).on('change', '#input-memory', _saveMemory);
     $(document).on('change', 'input[type=radio]', _saveAlgo);
+    $(document).on('click', '#open-listing', _openListing);
     _run();
 });
